@@ -32,12 +32,13 @@ def create_app(type="run"):
     from app.user import user_bp
     app.register_blueprint(user_bp)
     
-    from app.calender import calender_bp
-    app.register_blueprint(calender_bp)
+    from app.game import game_bp
+    app.register_blueprint(game_bp)
 
-    from app.commands import create_tables, add_testdata
+    from app.commands import create_tables, add_testdata, test_game
     app.cli.add_command(create_tables)
     app.cli.add_command(add_testdata)
+    app.cli.add_command(test_game)
 
     from app import models
 

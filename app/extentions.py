@@ -5,3 +5,4 @@ from flask_httpauth import HTTPBasicAuth
 login_manager = LoginManager()
 db = SQLAlchemy()
 auth = HTTPBasicAuth()
+queue = []

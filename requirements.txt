@@ -7,3 +7,5 @@ sqlalchemy_serializer
 flask-bcrypt 
 Flask-JWT-Extended
 redis
+psycopg2-binary
+flask-socketio

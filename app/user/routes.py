@@ -13,7 +13,7 @@ import redis
 from datetime import timedelta
 
 from functools import wraps
-from flask_jwt_extended import JWTManager, create_access_token, create_refresh_token, jwt_required, get_jwt_identity, get_jwt, unset_jwt_cookies, unset_refresh_cookies, unset_access_cookies
+from flask_jwt_extended import JWTManager, create_access_token, create_refresh_token, jwt_required, get_jwt_identity, decode_token
 from werkzeug.security import generate_password_hash, check_password_hash
 
 
@@ -44,6 +44,7 @@ def auth_login():
         session_id = str(uuid.uuid4())
 
         add_claims = {
+            "user_id": user.id,
             'session_id': session_id,
             'username' : user.username,
             'email' : user.email,
@@ -58,14 +59,22 @@ def auth_login():
     
 
 @user_bp.route("/auth/refresh", methods=["POST"])
-@jwt_required(refresh=True)
 def refresh():
+    data = request.get_json()
+    refresh_token = data.get("refresh_token")
 
-    user_id = get_jwt_identity()
-    user = User.query.filter_by(id=user_id).first()
+    if not refresh_token:
+        return jsonify({"message": "Refresh token is required"}), 400
+
+    # Dekodiere den Refresh-Token, um die user_id zu extrahieren
+    decoded_token = decode_token(refresh_token)
+    user_id = decoded_token["sub"]  # "sub" enthält die identity (user_id)
+
+    user = User.query.filter_by(id=uuid.UUID(user_id)).first()
     
     add_claims = {
-        'session_id': refresh_token.get("session_id"),
+        "user_id": user.id,
+        'session_id': decoded_token["session_id"],
         'username' : user.username,
         'email' : user.email,
         'user_type' : user.user_type,
@@ -74,6 +83,7 @@ def refresh():
     access_token = create_access_token(identity=user.id, additional_claims=add_claims)
     refresh_token = create_refresh_token(identity=user.id, additional_claims=add_claims)
     return jsonify(access_token=access_token, refresh_token=refresh_token)
+    
 
 # ------------------------------------------- LOGOUT ---------------------------------------------------
 
@@ -92,7 +102,7 @@ def create_user():
     password = generate_password_hash(pw, method="pbkdf2:sha256")
 
     try:
-        user = User(id=str(uuid.uuid4), name=username, lastname=lastName, email=email, password=password, user_type=0)
+        user = User(name=username, lastname=lastName, email=email, password=password, user_type=0)
         db.session.add(user)
         db.session.commit()
     except IntegrityError:
