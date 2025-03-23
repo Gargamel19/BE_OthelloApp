@@ -39,7 +39,7 @@ def add_testdata():
 @with_appcontext
 def test_game():
     from app.models import OthelloGame
-    from app.models import User
+    from app.models import User, GameMode
     from datetime import datetime
     import uuid
 
@@ -47,7 +47,7 @@ def test_game():
 
     user = User.query.all()
     gameManager = GameManager()
-    gameID = gameManager.create_game(user[0].id, user[1].id)
+    gameID = gameManager.create_game(user[0].id, user[1].id, game_mode=GameMode.ONLINE)
     game, borad = gameManager.build_board(gameID)
     print("initial board")
     gameManager.print_game(borad)

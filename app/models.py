@@ -6,8 +6,12 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import mapped_column
 from sqlalchemy_serializer import SerializerMixin
+from enum import Enum
 
-
+class GameMode(Enum):
+    ONLINE = "Online"
+    RANDOM = "Random"
+    AI = "AI"
 
 class User(db.Model, UserMixin, SerializerMixin):
     __tablename__ = "user"
@@ -41,6 +45,8 @@ class OthelloGame(db.Model, SerializerMixin):
     created_date = Column(DateTime, nullable=False)
     turn = Column(Integer, nullable=False, default=1)
 
+    game_mode = Column(String(1000), nullable=False)
+
     state = Column(String, nullable=False)
     
     moves = db.relationship('Move', back_populates='game', cascade='all, delete-orphan')
@@ -60,14 +66,37 @@ class OthelloGame(db.Model, SerializerMixin):
         for move in self.moves:
             move_list.append(move.to_dict())
         if self.turn == 1:
-            turn = self.white_id
+            turn = "-1" if self.white_id == None else self.white_id
         else:
-            turn = self.black_id
+            turn = "-1" if self.black_id == None else self.black_id
+
+        
+        if self.black_id == None:
+            temp_black = {
+            'id': "-1",
+            'username': "AI",
+            'lastname': "AI",
+            'email': "AI",
+            'user_type': 0
+        }
+        else:
+            temp_black = User.query.filter_by(id=self.black_id).first().to_dict()
+
+        if self.white_id == None:
+            temp_white = {
+            'id': "-1",
+            'username': "AI",
+            'lastname': "AI",
+            'email': "AI",
+            'user_type': 0
+        }
+        else:
+            temp_white = User.query.filter_by(id=self.white_id).first().to_dict()
 
         return {
             'id': self.id,
-            'white': self.white.to_dict(),
-            'black': self.black.to_dict(),
+            'white': temp_white,
+            'black': temp_black,
             'moves': move_list,
             'created_date': self.created_date.isoformat(),
             'state': self.state,

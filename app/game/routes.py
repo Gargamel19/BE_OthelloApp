@@ -6,7 +6,7 @@ from app.game.exceptions import *
 from flask import render_template, redirect, url_for, request, flash, abort, jsonify
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug import exceptions
-from app.models import User, OthelloGame, Move
+from app.models import User, OthelloGame, Move, GameMode
 from app.extentions import db, auth, queue
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
@@ -32,25 +32,6 @@ game_bp.register_error_handler(NotAuthorized, handle_error)
 ### API ENDPOINTS
 
 # ------------------------------------------- LOGIN ---------------------------------------------------
-
-@game_bp.route('', methods=['POST'])
-@jwt_required()
-def create_game():
-
-    userID = get_jwt_identity()
-    
-    data = request.get_json()
-    white_id = uuid.UUID(data['white_id'])
-    black_id = uuid.UUID(data['black_id'])
-
-    try:
-        othelloGame = OthelloGame(white_id=white_id, black_id=black_id, created_date=datetime.now())
-        db.session.add(othelloGame)
-        db.session.commit()
-    except IntegrityError:
-        raise GameAlreadyExist()
-
-    return jsonify(othelloGame.to_dict())	
 
 @game_bp.route('', methods=['GET'])
 @jwt_required()
@@ -106,7 +87,12 @@ def make_move(game_id):
         return jsonify({"error": "player is null"}), 400
 
     try:
-        gameManager.make_move(game_id, uuid.UUID(player), coordA, coordN, move_number)
+        game, board = gameManager.make_move(game_id, uuid.UUID(player), coordA, coordN, move_number)
+        if game.game_mode == GameMode.AI.value:
+            gameManager.make_ai_move(game_id)
+        elif game.game_mode == GameMode.RANDOM.value:
+            gameManager.make_random_move(game_id)
+        
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     
@@ -125,7 +111,7 @@ def search_game():
     user = User.query.filter_by(id=userID).first()
     if user not in queue:
         if len(queue) >= 1:
-            gameManager.create_game(queue[0].id, userID)
+            gameManager.create_game(queue[0].id, userID, GameMode.ONLINE)
             queue.pop(0)
         else:
             print(user.to_dict())
@@ -133,6 +119,25 @@ def search_game():
         return jsonify({"message": "User added to queue"})
     else:
         return jsonify({"message": "User already in queue"}), 400
+
+
+@game_bp.route('/queue/join/random', methods=['POST'])
+@jwt_required()
+def search_random_game():
+
+    userID = uuid.UUID(get_jwt_identity())
+    gameManager.create_game(userID, None, GameMode.RANDOM)
+    return jsonify({"message": "Random game created"})
+
+
+@game_bp.route('/queue/join/ai', methods=['POST'])
+@jwt_required()
+def search_ai_game():
+    userID = uuid.UUID(get_jwt_identity())
+    gameManager.create_game(userID, None, GameMode.AI)
+    return jsonify({"message": "AI game created"})
+
+
 
 @game_bp.route('/queue/inqueue', methods=['GET'])
 @jwt_required()

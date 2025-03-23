@@ -1,6 +1,7 @@
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from game_manager import GameManager
 from app import app
+from app.models import GameMode
 
 
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -18,7 +19,7 @@ def join_queue(data):
     if len(queue) >= 2:
         white_id = queue.pop(0)
         black_id = queue.pop(0)
-        game_id, game = GameManager.create_game(white_id, black_id)
+        game_id, game = GameManager.create_game(white_id, black_id, game_mode=GameMode.ONLINE)
 
         # Notify both players about the game
         emit('game_started', {'game_id': game_id, 'game': game}, room=white_id)

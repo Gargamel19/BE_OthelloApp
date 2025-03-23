@@ -1,8 +1,10 @@
 import uuid
-from app.models import OthelloGame, Move
+from app.models import OthelloGame, Move, GameMode
 from datetime import datetime
 from app.extentions import db
 from sqlalchemy import or_, and_
+import random
+
 
 class GameManager:
     def __init__(self):
@@ -18,11 +20,12 @@ class GameManager:
         return game, board
 
 
-    def create_game(self, white_id: uuid.UUID, black_id: uuid.UUID):
-        game= OthelloGame(white_id=white_id, black_id=black_id, created_date=datetime.now(), state="running", turn=1)
+    def create_game(self, white_id: uuid.UUID, black_id: uuid.UUID, game_mode: GameMode):
+        game= OthelloGame(white_id=white_id, black_id=black_id, created_date=datetime.now(), state="running", turn=1, game_mode=game_mode.value)
         db.session.add(game)
         db.session.commit()
         return game.id
+    
 
     def initialize_board(self):
         board = [["." for _ in range(8)] for _ in range(8)]
@@ -56,6 +59,58 @@ class GameManager:
 
         return game, board
 
+    def check_game_over(self, game: OthelloGame, board: list):
+        legal_moves = self.get_legal_moves(board, game.turn)
+        if len(self.get_legal_moves(board, game.turn)) == 0:
+            self.endGame(game, board)
+            return True, legal_moves
+        return False, legal_moves
+
+    def make_random_move(self, game_id: uuid.UUID):
+        game, board = self.build_board(game_id)
+        end, legal_moves = self.check_game_over(game, board)
+        if end:
+            return
+        else:
+            random.shuffle(legal_moves)
+            move = legal_moves[0]
+            get_char = chr(ord('a') + move[0])
+            self.make_move(game_id, None, get_char, move[1]+1, len(game.moves) + 1)
+             #TODO: Check if game is over
+        game, board = self.build_board(game_id)
+        end, legal_moves = self.check_game_over(game, board)
+            
+
+    def get_legal_moves(self, board: list, turn: int):
+        legal_moves = []
+        for x in range(8):
+            for y in range(8):
+                if board[y][x] == ".":
+                    captured_pieces = self.get_captured_pieces(board, turn, x, y)
+                    if len(captured_pieces) > 0:
+                        legal_moves.append((x, y))
+        return legal_moves
+
+
+    def endGame(self, game: OthelloGame, board: list):
+        white_count = 0
+        black_count = 0
+        for row in board:
+            for cell in row:
+                if cell == 0:
+                    white_count += 1
+                elif cell == 1:
+                    black_count += 1
+
+        if white_count > black_count:
+            game.state = "white won"
+        elif white_count < black_count:
+            game.state = "black won"
+        else:
+            game.state = "draw"
+        db.session.commit()
+        return game.state
+
     def make_move(self, game_id: uuid.UUID, player_id: uuid.UUID, coordA: str, coordN: int, move_number: int):
         
         game, board = self.build_board(game_id)
@@ -63,8 +118,9 @@ class GameManager:
         if move_number != len(game.moves) + 1:
             raise ValueError("Invalid move number")
 
-        if (game.turn == 1 and player_id == game.black_id) or \
-           (game.turn == 0 and player_id == game.white_id):
+        if player_id != None and ((game.turn == 1 and player_id == game.black_id) or \
+           (game.turn == 0 and player_id == game.white_id)):
+            print("Not your turn")
             raise ValueError("Not your turn")
 
         x = ord(coordA.lower()) - ord('a')
@@ -74,6 +130,7 @@ class GameManager:
 
 
         if board[y][x] != "." or not captured_pieces:
+            print("Invalid move")
             raise ValueError("Invalid move")
         
         board[y][x] = game.turn
@@ -90,6 +147,9 @@ class GameManager:
 
         game.turn = 0 if game.turn == 1 else 1
         db.session.commit()
+
+        game, board = self.build_board(game_id)
+        self.check_game_over(game, board)
 
         return game, board
     
